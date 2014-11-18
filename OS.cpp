@@ -2,16 +2,20 @@
 
 using namespace std;
 
-void siodisk(int jobnum);
-void siodrum(int jobnum, int jobsize, int coreaddress, int direction);
-void ontrace();
-void offtrace();
+class Jobtable {
+public:
+
+
+private:
+
+};
+
 void startup();
-void Crint(int a, int p[]);
-void Dskint(int a, int p[]);
-void Drmint(int a, int p[]);
-void Tro(int a, int p[]);
-void Svc(int a, int p[]);
+void Crint(long a, long p[]);
+void Dskint(long a, long p[]);
+void Drmint(long a, long p[]);
+void Tro(long a, long p[]);
+void Svc(long a, long p[]);
 
 
 int main() {
@@ -22,41 +26,28 @@ int main() {
 
 return 0;
 }
-void siodisk(int jobnum){
 
-};
-void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
-
-};
-void ontrace(){
-
-
-};
-void offtrace(){
-
-
-};
 void startup(){
 
 
 };
-void Crint(int a, int p[]){
+void Crint(long a, long p[]){
 
 
 };
-void Dskint(int a, int p[]){
+void Dskint(long a, long p[]){
 
 
 };
-void Drmint(int a, int p[]){
+void Drmint(long a, long p[]){
 
 
 };
-void Tro(int a, int p[]){
+void Tro(long a, long p[]){
 
 
 };
-void Svc(int a, int p[]){
+void Svc(long a, long p[]){
 
 
 };
