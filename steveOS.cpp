@@ -1,4 +1,4 @@
-#include<iostream>
+#include <iostream>
 
 using namespace std;
 
@@ -45,35 +45,40 @@ void startup(){
     index = 0;
 }
 
-void Crint(long a, long p[]) {
+void Crint(long &a, long *p) {
     if (index == SIZE)
         index = 0;
+
 
     jobtable[index].setJobNum(p[1]);
     jobtable[index].setPriority(p[2]);
     jobtable[index].setJobSize(p[3]);
     jobtable[index].setCPUTime(p[4]);
     jobtable[index].setCurrTime(p[5]);
+    jobtable[index].setLatchBit(false);
 
     index++;
 }
 
-void Dskint(long a, long p[]){
-
-
+void Dskint(long &a, long *p){
+    jobtable[index].setCurrTime(p[5]);
 }
 
-void Drmint(long a, long p[]){
-
-
+void Drmint(long &a, long *p){
+    jobtable[index].setCurrTime(p[5]);
 }
 
-void Tro(long a, long p[]){
-
-
+void Tro(long &a, long *p){
+    jobtable[index].setCurrTime(p[5]);
 }
 
-void Svc(long a, long p[]){
-
-
+void Svc(long &a, long *p){
+    switch (a) {
+    case 5:
+        break;
+    case 6:
+        break;
+    default:
+        break;
+    }
 }
