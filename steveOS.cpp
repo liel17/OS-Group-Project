@@ -2,6 +2,7 @@
 
 using namespace std;
 
+
 class PCB {
 	public:
 	    PCB() {
@@ -36,19 +37,28 @@ class PCB {
         bool latch_bit;
 };
 
+//Calls to SOS
+void ontrace();
+void offtrace();
+void siodrum(long, long, long, long);
+void siodisk(long);
+
 //Global variables
 const int SIZE = 50;
 int index;
 PCB jobtable[SIZE];
+int start;
 
+//Startup
 void startup(){
     index = 0;
+    start = 0;
 }
 
+//Interrupt handlers
 void Crint(long &a, long *p) {
     if (index == SIZE)
         index = 0;
-
 
     jobtable[index].setJobNum(p[1]);
     jobtable[index].setPriority(p[2]);
@@ -58,6 +68,15 @@ void Crint(long &a, long *p) {
     jobtable[index].setLatchBit(false);
 
     index++;
+/*Testing siodrum
+    ontrace();
+    long jobNum = jobtable[index].getJobNum();
+    long jobSize = jobtable[index].getJobSize();
+    start += jobSize;
+    siodrum(jobNum, jobSize, start, 0);
+    a = 2;
+    offtrace();
+    */
 }
 
 void Dskint(long &a, long *p){
