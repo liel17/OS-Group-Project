@@ -27,6 +27,15 @@ class PCB {
 	    void setLatchBit(bool b) {latch_bit = b;}
 	    bool isDoingIO() {return latch_bit;}
 
+	    void setKillBit(bool b) {kill_bit = b;}
+	    bool isComplete() {return kill_bit;}
+
+	    void setBlockBit(bool b) {block_bit = b;}
+	    bool isBlocked() {return block_bit;}
+
+        void setInCoreBit(bool b) {inCore_bit = b;}
+	    bool isInCore() {return inCore_bit;}
+
 	private:
 	    long
 	        jobNum,
@@ -34,7 +43,12 @@ class PCB {
 	        jobSize,
 	        CPU_time,
 	        curr_time;
-        bool latch_bit;
+        bool
+            latch_bit,
+            kill_bit,
+            block_bit,
+            inCore_bit;
+
 };
 
 //Calls to SOS
@@ -47,7 +61,7 @@ void siodisk(long);
 const int SIZE = 50;
 int index;
 PCB jobtable[SIZE];
-int start;
+long start;
 
 //Startup
 void startup(){
@@ -60,23 +74,14 @@ void Crint(long &a, long *p) {
     if (index == SIZE)
         index = 0;
 
-    jobtable[index].setJobNum(p[1]);
-    jobtable[index].setPriority(p[2]);
-    jobtable[index].setJobSize(p[3]);
-    jobtable[index].setCPUTime(p[4]);
-    jobtable[index].setCurrTime(p[5]);
+    jobtable[index].setJobNum(*(p+1));
+    jobtable[index].setPriority(*(p+2));
+    jobtable[index].setJobSize(*(p+3));
+    jobtable[index].setCPUTime(*(p+4));
+    jobtable[index].setCurrTime(*(p+5));
     jobtable[index].setLatchBit(false);
 
     index++;
-/*Testing siodrum
-    ontrace();
-    long jobNum = jobtable[index].getJobNum();
-    long jobSize = jobtable[index].getJobSize();
-    start += jobSize;
-    siodrum(jobNum, jobSize, start, 0);
-    a = 2;
-    offtrace();
-    */
 }
 
 void Dskint(long &a, long *p){
@@ -84,6 +89,7 @@ void Dskint(long &a, long *p){
 }
 
 void Drmint(long &a, long *p){
+
     jobtable[index].setCurrTime(p[5]);
 }
 
@@ -101,3 +107,12 @@ void Svc(long &a, long *p){
         break;
     }
 }
+
+/*Testing siodrum
+    ontrace();
+    long jobNum = jobtable[index].getJobNum();
+    long jobSize = jobtable[index].getJobSize();
+    start += jobSize;
+    siodrum(jobNum, jobSize, start, 0);
+    a = 2;
+    offtrace();*/
