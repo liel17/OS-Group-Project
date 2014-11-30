@@ -1,13 +1,6 @@
-#include <iostream>
-
-using namespace std;
-
-
 class PCB {
 	public:
-	    PCB() {
-            latch_bit = false;
-	    }
+	    PCB() {}
 
 	    void setJobNum(long val) {jobNum = val;}
 	    long getJobNum() {return jobNum;}
@@ -54,8 +47,11 @@ class PCB {
 //Calls to SOS
 void ontrace();
 void offtrace();
-void siodrum(long, long, long, long);
+void siodrum(long, long, long, long);   //TransferDir must be converted from int to long
 void siodisk(long);
+
+// Internal calls within OS
+void swapper(long, long, long);
 
 //Global variables
 const int SIZE = 50;
@@ -73,28 +69,35 @@ void startup(){
 void Crint(long &a, long *p) {
     if (index == SIZE)
         index = 0;
-
+    ontrace();
     jobtable[index].setJobNum(*(p+1));
     jobtable[index].setPriority(*(p+2));
     jobtable[index].setJobSize(*(p+3));
     jobtable[index].setCPUTime(*(p+4));
     jobtable[index].setCurrTime(*(p+5));
     jobtable[index].setLatchBit(false);
+    offtrace();
 
+    long jobNum = jobtable[index].getJobNum();
+    long jobSize = jobtable[index].getJobSize();
+    swapper(jobNum, jobSize, start);
+
+    a = 1;
+    start += jobSize;
     index++;
 }
 
 void Dskint(long &a, long *p){
-    jobtable[index].setCurrTime(p[5]);
+    jobtable[index].setCurrTime(*(p+5));
 }
 
 void Drmint(long &a, long *p){
-
-    jobtable[index].setCurrTime(p[5]);
+    a = 1;
+    jobtable[index].setCurrTime(*(p+5));
 }
 
 void Tro(long &a, long *p){
-    jobtable[index].setCurrTime(p[5]);
+    jobtable[index].setCurrTime(*(p+5));
 }
 
 void Svc(long &a, long *p){
@@ -102,17 +105,15 @@ void Svc(long &a, long *p){
     case 5:
         break;
     case 6:
+        //siodisk(jobtable[index].getJobNum());
         break;
     default:
         break;
     }
+
+    jobtable[index].setCurrTime(*(p+5));
 }
 
-/*Testing siodrum
-    ontrace();
-    long jobNum = jobtable[index].getJobNum();
-    long jobSize = jobtable[index].getJobSize();
-    start += jobSize;
+void swapper(long jobNum, long jobSize, long start) {
     siodrum(jobNum, jobSize, start, 0);
-    a = 2;
-    offtrace();*/
+}
