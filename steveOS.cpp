@@ -44,6 +44,12 @@ class PCB {
 
 };
 
+//Global variables
+const int SIZE = 50;
+int index;
+PCB jobtable[SIZE];
+long start;
+
 //Calls to SOS
 void ontrace();
 void offtrace();
@@ -51,13 +57,8 @@ void siodrum(long, long, long, long);   //TransferDir must be converted from int
 void siodisk(long);
 
 // Internal calls within OS
-void swapper(long, long, long);
-
-//Global variables
-const int SIZE = 50;
-int index;
-PCB jobtable[SIZE];
-long start;
+void swapper(PCB);
+void scheduler(PCB);
 
 //Startup
 void startup(){
@@ -69,21 +70,18 @@ void startup(){
 void Crint(long &a, long *p) {
     if (index == SIZE)
         index = 0;
-    ontrace();
+
     jobtable[index].setJobNum(*(p+1));
     jobtable[index].setPriority(*(p+2));
     jobtable[index].setJobSize(*(p+3));
     jobtable[index].setCPUTime(*(p+4));
     jobtable[index].setCurrTime(*(p+5));
     jobtable[index].setLatchBit(false);
-    offtrace();
 
-    long jobNum = jobtable[index].getJobNum();
-    long jobSize = jobtable[index].getJobSize();
-    swapper(jobNum, jobSize, start);
+    swapper(jobtable[index]);
 
     a = 1;
-    start += jobSize;
+    start += jobtable[index].getJobSize();
     index++;
 }
 
@@ -105,7 +103,6 @@ void Svc(long &a, long *p){
     case 5:
         break;
     case 6:
-        //siodisk(jobtable[index].getJobNum());
         break;
     default:
         break;
@@ -114,6 +111,15 @@ void Svc(long &a, long *p){
     jobtable[index].setCurrTime(*(p+5));
 }
 
-void swapper(long jobNum, long jobSize, long start) {
+//Internal helper functions
+void swapper(PCB process) {
+    long jobNum = process.getJobNum();
+    long jobSize = process.getJobSize();
     siodrum(jobNum, jobSize, start, 0);
 }
+
+/*
+void scheduler(PCB process) {
+
+}
+*/
