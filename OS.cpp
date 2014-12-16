@@ -20,9 +20,13 @@ class Process {
             jobNum = *(p+1);
 	        priority = *(p+2);
 	        jobSize = *(p+3);
-	        CPU_time = *(p+4);
+	        maxCPUtime = *(p+4);
 	        curr_time = *(p+5);
-	        inCoreBit = latchBit = blockBit = killBit = false;
+
+	        inCoreBit = latchBit = blockBit
+                    = killBit = IOpending = false;
+
+            CPUtimeUsed = 0;
 	    }
 
 	    Process() {}
@@ -37,14 +41,17 @@ class Process {
 	    void setJobSize(long val) {jobSize = val;}
 	    long getJobSize() {return jobSize;}
 
-	    void setCPUTime(long val) {CPU_time = val;}
-	    long getCPUTime() {return CPU_time;}
+	    void setMaxCPUTime(long val) {maxCPUtime = val;}
+	    long getMaxCPUTime() {return maxCPUtime;}
 
 	    void setCurrTime(long val) {curr_time = val;}
 	    long getCurrTime() {return curr_time;}
 
 	    void setAddress(long val) {address = val;}
 	    long getAddress() {return address;}
+
+	    void setCPUtimeUsed(long val) {CPUtimeUsed = val;}
+	    long getCPUtimeUsed() {return CPUtimeUsed;}
 
 	    void setInCoreBit(bool b) {inCoreBit = b;}
 	    bool isInCore() {return inCoreBit;}
@@ -58,20 +65,25 @@ class Process {
 	    void setKillBit(bool b) {killBit = b;}
 	    bool isTerminated() {return killBit;}
 
+	    void setIOpending(bool b) {IOpending = b;}
+	    bool haspendingIO() {return IOpending;}
+
 	private:
 	    long
 	        jobNum,     // Job number
 	        priority,   // Priority of job
 	        jobSize,    // Size of job
-	        CPU_time,   // Max CPU time of job
+	        maxCPUtime, // Max CPU time of job
 	        curr_time,  // Current run time
-	        address;    // Current memory address of job
+	        address,    // Current memory address of job
+            CPUtimeUsed;
 
         bool
             inCoreBit,  // Flag if job is swapped in
             latchBit,   // Flag if job is swapped out
             blockBit,   // Flag if job has been blocked
-            killBit;    // Flag if job has been terminated
+            killBit,    // Flag if job has been terminated
+            IOpending;  // Flag if job has pending IO
 
 };
 
@@ -128,6 +140,7 @@ bool doingIO;       // Flag if IO is being done
 bool CPUidle;       // Flag is CPU is idle
 
 long quantum = 5;
+long timestamp;
 
 Process runningProc;
 
@@ -142,33 +155,28 @@ void siodisk(long);
 /*-------------------------+
 | Internal calls within OS |
 +-------------------------*/
-void swapper();
 Process scheduler(long&, long*);
+void dispatcher(long&, long*);
 bool findSpace(long);
 long getSpace(long);
-void timer(long);
-void bookkeep(long);
 void combine();
+void timer(long);
+
 
  /*--------+
  | Startup |
  +--------*/
 void startup() {
-    nextAvailAdd = start = 0;
+    nextAvailAdd = start = timestamp = 0;
     drumInUse = false;
     fsExists = true;
     CPUidle = true;
-    ontrace();
+    //ontrace();
 }
 
- /*-----------------------------------------------------------------------+
- |                      Interrupt handlers                                |
- |                                                                        |
- | Crint: A new Process object is created and initialized with parameters |
- |        passed in from *p and new FreeSpaceEntry object is created and  |
- |        stored onto the FreeSpaceTable. This will also be used to swap  |
- |        jobs into memory.
- +-----------------------------------------------------------------------*/
+ /*-------------------+
+ | Interrupt handlers |
+ +-------------------*/
 void Crint(long &a, long *p) {
     Process process(p);
 
@@ -200,7 +208,6 @@ void Crint(long &a, long *p) {
             freespacetable[index].insert(jobSize);
 
             // Begin swap in
-
             for(int i = 0; i < jobtable.size(); i++) {
                 if (jobtable[i].getJobNum() == *(p+1))
                     jobtable[i].setInCoreBit(true);
@@ -214,7 +221,7 @@ void Crint(long &a, long *p) {
 }
 
 void Dskint(long &a, long *p) {
-    currTime = *(p+5);
+    timer( *(p+5) );
     diskIsBusy = false;
     long baseAddress;
     long jobSize;
@@ -226,37 +233,31 @@ void Dskint(long &a, long *p) {
             jobtable[i].setLatchBit(false);
             baseAddress = runningProc.getAddress();
             jobSize = runningProc.getJobSize();
-            CPUTime = runningProc.getCPUTime();
+            CPUTime = runningProc.getMaxCPUTime();
             jobNum = runningProc.getJobNum();
             break;
         }
     }
 
-    a = 2;
-    *(p+2) = baseAddress;
-    *(p+3) = jobSize;
-    *(p+4) = quantum;
+    dispatcher(a, p);
 }
 
 void Drmint(long &a, long *p) {
-    currTime = *(p+5);
+    timer( *(p+5) );
     runningProc = scheduler(a, p);
+    drumqueue.pop_back();
 
     drumInUse = false;
-
-    a = 2;
-    *(p+2) = runningProc.getAddress();
-    *(p+3) = runningProc.getJobSize();
-    *(p+4) = quantum;
+    dispatcher(a, p);
 }
 
 void Tro(long &a, long *p) {
-    currTime = *(p+5);
-    a = 2;
+    timer( *(p+5) );
+    dispatcher(a, p);
 }
 
 void Svc(long &a, long *p) {
-    currTime = *(p+5);
+    timer( *(p+5) );
 
     runningProc = scheduler(a, p);
     long jobNum = runningProc.getJobNum();
@@ -265,7 +266,7 @@ void Svc(long &a, long *p) {
 
     switch (a) {
     case 5:
-        currTime = *(p+5);
+        timer( *(p+5) );
 
         // Search the job table for the process being terminated
         for (int i = 0; i < jobtable.size(); i++) {
@@ -287,16 +288,21 @@ void Svc(long &a, long *p) {
     case 6:
         //Push the job onto the I/O queue
         IOqueue.push_back(runningProc);
+        runningProc.setIOpending(true);
+
+        // Update job table
+        for (int i = 0; i < jobtable.size(); i++) {
+            if ( jobtable[i].getJobNum() == *(p+1) )
+                jobtable[i] = runningProc;
+        }
+
 
         // Send the job to do I/O
         siodisk(jobNum);
         diskIsBusy = true;
         CPUidle = false;
 
-        a = 2;
-        *(p+2) = address;
-        *(p+3) = jobSize;
-        *(p+4) = quantum;
+        dispatcher(a, p);
         break;
 
     case 7:
@@ -308,9 +314,6 @@ void Svc(long &a, long *p) {
 
         CPUidle = true;
         a = 1;
-        *(p+2) = runningProc.getAddress();
-        *(p+3) = runningProc.getJobSize();
-        *(p+4) = quantum;
         break;
     }
 }
@@ -318,10 +321,7 @@ void Svc(long &a, long *p) {
  /*-------------------------------------------------------------------+
  |                         CPU Scheduling                             |
  |                                                                    |
- | scheduler(): Uses FCFS to find the next job to schedule              |
- |
- |
- |
+ | scheduler(): Uses FCFS to find the next job to schedule            |
  +-------------------------------------------------------------------*/
 
 Process scheduler(long &action, long *params) {
@@ -331,25 +331,24 @@ Process scheduler(long &action, long *params) {
 
     Process newproc;
 
+    // Search the jobtable for the corresponding job number
+    // and ensure the process has not been terminated
     for (int i = 0; i < jobtable.size(); i++) {
-        if ( jobtable[i].getJobNum() == *(params+1) ) {
+        if ( jobtable[i].getJobNum() == *(params+1) && !jobtable[i].isTerminated()) {
             baseAddress = start;
             newproc.setAddress(start);
 
             newJobSize = jobtable[i].getJobSize();
             newproc.setJobSize(newJobSize);
 
-            newCPUTime = jobtable[i].getCPUTime();
-            newproc.setCPUTime(newCPUTime);
+            newCPUTime = jobtable[i].getMaxCPUTime();
+            newproc.setMaxCPUTime(newCPUTime);
 
             newproc.setJobNum( jobtable[i].getJobNum() );
 
             break;
         }
     }
-
-    long index = jobtable.size() - 1;
-    //start += jobtable[index].getAddress();
 
     return newproc;
 }
@@ -374,12 +373,9 @@ void combine() {
 }
 
 
-/*------------------------------------------+
-|        Internal calls within OS           |
-|                                           |
-|                                           |
-|                                           |
-+------------------------------------------*/
+/*-------------------------+
+| Internal calls within OS |
++-------------------------*/
 
 bool findSpace(long jobSize) {
  	long max = 0;
@@ -395,22 +391,16 @@ bool findSpace(long jobSize) {
     return false;
 }
 
-// BUG: RETURNS DIFFERENCE
-long getSpace(long jobSize) {
-    long max = 0;
-
- 	for(int i = 0; i < freespacetable.size(); i++) {
-        if(freespacetable[i].getFS() >= max)
-            max = 100 - freespacetable[i].getFS();
- 	}
-
-    return max;
+void timer(long time) {
+    long interval = time - timestamp;
+    timestamp = time;
+    long newTime = interval + runningProc.getCPUtimeUsed();
+    runningProc.setCPUtimeUsed(newTime);
 }
 
-void timer (long currTime) {
-    quantum = currTime - quantum;
-}
-
-void bookkeep(long time) {
-    long interval = time - stopclock;
+void dispatcher(long &action, long *params) {
+    action = 2;
+    *(params+2) = runningProc.getAddress();
+    *(params+3) = runningProc.getJobSize();
+    *(params+4) = quantum;
 }
